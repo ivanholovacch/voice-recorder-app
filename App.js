@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Button, Text, Alert } from 'react-native';
+import { View, Button, Text, Alert, TextInput, StyleSheet } from 'react-native';
 import * as MailComposer from 'expo-mail-composer';
 import { Audio } from 'expo-av';
 
@@ -7,6 +7,8 @@ export default function VoiceRecorderApp() {
   const [recording, setRecording] = useState(null);
   const [isRecording, setIsRecording] = useState(false);
   const [recordingUri, setRecordingUri] = useState(null);
+  const [email, setEmail] = useState('');
+  const [isSending, setIsSending] = useState(false);
 
   useEffect(() => {
     setupRecording();
@@ -30,6 +32,11 @@ export default function VoiceRecorderApp() {
   };
 
   const startRecording = async () => {
+    if (!email) {
+      Alert.alert('Error', 'Please enter your email address first');
+      return;
+    }
+    
     try {
       const recording = new Audio.Recording();
       await recording.prepareToRecordAsync(Audio.RECORDING_OPTIONS_PRESET_HIGH_QUALITY);
@@ -47,17 +54,16 @@ export default function VoiceRecorderApp() {
       const uri = recording.getURI();
       setRecordingUri(uri);
       setIsRecording(false);
+      sendEmail(uri);
     } catch (err) {
       Alert.alert('Error', 'Failed to stop recording: ' + err.message);
     }
   };
 
-  const sendEmail = async () => {
-    if (!recordingUri) {
-      Alert.alert('Error', 'No recording to send');
-      return;
-    }
+  const sendEmail = async (uri) => {
+    if (!uri || !email) return;
 
+    setIsSending(true);
     try {
       const isAvailable = await MailComposer.isAvailableAsync();
       if (!isAvailable) {
@@ -66,18 +72,31 @@ export default function VoiceRecorderApp() {
       }
 
       await MailComposer.composeAsync({
+        recipients: [email],
         subject: 'Voice Recording',
         body: 'Please find attached the voice recording.',
-        attachments: [recordingUri]
+        attachments: [uri]
       });
     } catch (err) {
       Alert.alert('Error', 'Failed to send email: ' + err.message);
+    } finally {
+      setIsSending(false);
     }
   };
 
   return (
-    <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', gap: 20 }}>
-      <Text style={{ fontSize: 24, marginBottom: 20 }}>
+    <View style={styles.container}>
+      <TextInput
+        style={styles.input}
+        value={email}
+        onChangeText={setEmail}
+        placeholder="Enter your email"
+        keyboardType="email-address"
+        autoCapitalize="none"
+        editable={!isRecording}
+      />
+      
+      <Text style={styles.status}>
         {isRecording ? 'Recording in progress...' : 'Ready to Record'}
       </Text>
       
@@ -85,15 +104,38 @@ export default function VoiceRecorderApp() {
         title={isRecording ? 'Stop Recording' : 'Start Recording'}
         onPress={isRecording ? stopRecording : startRecording}
         color={isRecording ? 'red' : 'green'}
+        disabled={isSending}
       />
       
-      {recordingUri && !isRecording && (
-        <Button
-          title="Send Recording via Email"
-          onPress={sendEmail}
-          color="blue"
-        />
+      {isSending && (
+        <Text style={styles.sending}>Sending to {email}...</Text>
       )}
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  input: {
+    width: '100%',
+    height: 40,
+    borderWidth: 1,
+    borderColor: '#ccc',
+    borderRadius: 5,
+    paddingHorizontal: 10,
+    marginBottom: 20,
+  },
+  status: {
+    fontSize: 24,
+    marginBottom: 20,
+  },
+  sending: {
+    marginTop: 10,
+    color: 'blue',
+  },
+});
