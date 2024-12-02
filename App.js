@@ -3,6 +3,9 @@ import { View, Button, Text, Alert, TextInput, StyleSheet } from 'react-native';
 import * as MailComposer from 'expo-mail-composer';
 import { Audio } from 'expo-av';
 import * as FileSystem from 'expo-file-system';
+// import { EmailJSResponseStatus } from '@emailjs/browser';
+
+import emailjs from "emailjs-com";
 
 export default function VoiceRecorderApp() {
   const [recording, setRecording] = useState(null);
@@ -13,7 +16,6 @@ export default function VoiceRecorderApp() {
 
   useEffect(() => {
     setupRecording();
-    setupEmail();
     return () => {
       if (recording) {
         recording.unloadAsync();
@@ -24,13 +26,59 @@ export default function VoiceRecorderApp() {
   const setupEmail = async () => {
     const isAvailable = await MailComposer.isAvailableAsync();
     if (!isAvailable) {
-      Alert.alert('Error', 'Email is not available on this device');
+      // Alert.alert('Error', 'Email is not available on this device');
     }
   };
 
   const validateEmail = (email) => {
     const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     return re.test(email);
+  };
+
+
+  const sendEmail = async (audioUri) => {
+    const base64Audio = await FileSystem.readAsStringAsync(audioUri, {
+      encoding: FileSystem.EncodingType.Base64
+    });
+
+    const response = await fetch('https://api.emailjs.com/api/v1.0/email/send', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer d0NeABFjkxXsZ4fyLvQ2P'  // Add private key here
+      },
+      body: JSON.stringify({
+        service_id: 'service_rvvqy6a',
+        template_id: 'template_z5wax5a',
+        user_id: 'JzMV9A_L0MqfV-EVN',
+        accessToken: 'd0NeABFjkxXsZ4fyLvQ2P',
+        template_params: {
+          to_email: email,
+          message: 'Voice recording attached',
+          // audio_file: base64Audio
+          // filename: 'recording.m4a'
+        }
+      })
+    });
+
+    if (!response.ok) {
+      const res = await response.text()
+      console.log('res', res)
+      throw new Error(res);
+    }
+  }
+
+// Update stopRecording to use sendEmail
+  const stopRecording = async () => {
+    try {
+      await recording.stopAndUnloadAsync();
+      const uri = recording.getURI();
+      await sendEmail(uri);
+      setIsRecording(false);
+    } catch (err) {
+      Alert.alert('Error', err, err.message);
+     console.log('Error', err, err.message);
+    }
   };
 
   const setupRecording = async () => {
@@ -51,15 +99,15 @@ export default function VoiceRecorderApp() {
   };
 
   const startRecording = async () => {
-    if (!email) {
-      Alert.alert('Error', 'Please enter your email address first');
-      return;
-    }
+    // if (!email) {
+    //   Alert.alert('Error', 'Please enter your email address first');
+    //   return;
+    // }
 
-    if (!validateEmail(email)) {
-      Alert.alert('Error', 'Please enter a valid email address');
-      return;
-    }
+    // if (!validateEmail(email)) {
+    //   Alert.alert('Error', 'Please enter a valid email address');
+    //   return;
+    // }
     
     try {
       const newRecording = new Audio.Recording();
@@ -89,51 +137,6 @@ export default function VoiceRecorderApp() {
       setIsRecording(true);
     } catch (err) {
       Alert.alert('Error', 'Failed to start recording: ' + err.message);
-    }
-  };
-
-  const stopRecording = async () => {
-    try {
-      await recording.stopAndUnloadAsync();
-      const uri = recording.getURI();
-      
-      // Get file info
-      const fileInfo = await FileSystem.getInfoAsync(uri);
-      if (!fileInfo.exists) {
-        throw new Error('Recording file not found');
-      }
-
-      setRecordingUri(uri);
-      setIsRecording(false);
-      await sendEmail(uri);
-    } catch (err) {
-      Alert.alert('Error', 'Failed to stop recording: ' + err.message);
-    }
-  };
-
-  const sendEmail = async (uri) => {
-    if (!uri || !email) {
-      Alert.alert('Error', 'Recording or email not available');
-      return;
-    }
-
-    setIsSending(true);
-    try {
-      const result = await MailComposer.composeAsync({
-        recipients: [email],
-        subject: 'Voice Recording',
-        body: 'Please find attached the voice recording.',
-        attachments: [uri],
-        isHtml: false,
-      });
-
-      if (result.status === 'sent') {
-        Alert.alert('Success', 'Recording sent successfully');
-      }
-    } catch (err) {
-      Alert.alert('Error', 'Failed to send email: ' + err.message);
-    } finally {
-      setIsSending(false);
     }
   };
 

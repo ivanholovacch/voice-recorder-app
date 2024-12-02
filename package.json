@@ -12,6 +12,7 @@
   "dependencies": {
     "@babel/plugin-proposal-export-namespace-from": "^7.18.9",
     "babel-plugin-module-resolver": "^5.0.2",
+    "emailjs-com": "^3.2.0",
     "expo": "^52.0.11",
     "expo-av": "^13.4.1",
     "expo-file-system": "^15.4.0",
