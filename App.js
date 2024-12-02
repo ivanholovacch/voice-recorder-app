@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { View, Button, Text, Alert, TextInput, StyleSheet } from 'react-native';
 import * as MailComposer from 'expo-mail-composer';
 import { Audio } from 'expo-av';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function VoiceRecorderApp() {
   const [recording, setRecording] = useState(null);
@@ -13,31 +12,12 @@ export default function VoiceRecorderApp() {
 
   useEffect(() => {
     setupRecording();
-    loadSavedEmail();
     return () => {
       if (recording) {
         recording.unloadAsync();
       }
     };
   }, []);
-
-  const loadSavedEmail = async () => {
-    try {
-      const savedEmail = await AsyncStorage.getItem('userEmail');
-      if (savedEmail) setEmail(savedEmail);
-    } catch (err) {
-      console.error('Failed to load email:', err);
-    }
-  };
-
-  const saveEmail = async (newEmail) => {
-    try {
-      await AsyncStorage.setItem('userEmail', newEmail);
-      setEmail(newEmail);
-    } catch (err) {
-      console.error('Failed to save email:', err);
-    }
-  };
 
   const setupRecording = async () => {
     try {
@@ -109,7 +89,7 @@ export default function VoiceRecorderApp() {
       <TextInput
         style={styles.input}
         value={email}
-        onChangeText={saveEmail}
+        onChangeText={setEmail}
         placeholder="Enter your email"
         keyboardType="email-address"
         autoCapitalize="none"
