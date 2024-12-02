@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { View, Button, Text, Alert, TextInput, StyleSheet } from 'react-native';
 import * as MailComposer from 'expo-mail-composer';
 import { Audio } from 'expo-av';
+import * as FileSystem from 'expo-file-system';
 
 export default function VoiceRecorderApp() {
   const [recording, setRecording] = useState(null);
@@ -12,6 +13,7 @@ export default function VoiceRecorderApp() {
 
   useEffect(() => {
     setupRecording();
+    setupEmail();
     return () => {
       if (recording) {
         recording.unloadAsync();
@@ -19,9 +21,26 @@ export default function VoiceRecorderApp() {
     };
   }, []);
 
+  const setupEmail = async () => {
+    const isAvailable = await MailComposer.isAvailableAsync();
+    if (!isAvailable) {
+      Alert.alert('Error', 'Email is not available on this device');
+    }
+  };
+
+  const validateEmail = (email) => {
+    const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return re.test(email);
+  };
+
   const setupRecording = async () => {
     try {
-      await Audio.requestPermissionsAsync();
+      const permission = await Audio.requestPermissionsAsync();
+      if (!permission.granted) {
+        Alert.alert('Permission Required', 'Please allow microphone access to record audio');
+        return;
+      }
+
       await Audio.setAudioModeAsync({
         allowsRecordingIOS: true,
         playsInSilentModeIOS: true,
@@ -36,12 +55,37 @@ export default function VoiceRecorderApp() {
       Alert.alert('Error', 'Please enter your email address first');
       return;
     }
+
+    if (!validateEmail(email)) {
+      Alert.alert('Error', 'Please enter a valid email address');
+      return;
+    }
     
     try {
-      const recording = new Audio.Recording();
-      await recording.prepareToRecordAsync(Audio.RECORDING_OPTIONS_PRESET_HIGH_QUALITY);
-      await recording.startAsync();
-      setRecording(recording);
+      const newRecording = new Audio.Recording();
+      await newRecording.prepareToRecordAsync({
+        android: {
+          extension: '.m4a',
+          outputFormat: Audio.RECORDING_OPTION_ANDROID_OUTPUT_FORMAT_MPEG_4,
+          audioEncoder: Audio.RECORDING_OPTION_ANDROID_AUDIO_ENCODER_AAC,
+          sampleRate: 44100,
+          numberOfChannels: 2,
+          bitRate: 128000,
+        },
+        ios: {
+          extension: '.m4a',
+          audioQuality: Audio.RECORDING_OPTION_IOS_AUDIO_QUALITY_HIGH,
+          sampleRate: 44100,
+          numberOfChannels: 2,
+          bitRate: 128000,
+          linearPCMBitDepth: 16,
+          linearPCMIsBigEndian: false,
+          linearPCMIsFloat: false,
+        },
+      });
+      
+      await newRecording.startAsync();
+      setRecording(newRecording);
       setIsRecording(true);
     } catch (err) {
       Alert.alert('Error', 'Failed to start recording: ' + err.message);
@@ -52,31 +96,40 @@ export default function VoiceRecorderApp() {
     try {
       await recording.stopAndUnloadAsync();
       const uri = recording.getURI();
+      
+      // Get file info
+      const fileInfo = await FileSystem.getInfoAsync(uri);
+      if (!fileInfo.exists) {
+        throw new Error('Recording file not found');
+      }
+
       setRecordingUri(uri);
       setIsRecording(false);
-      sendEmail(uri);
+      await sendEmail(uri);
     } catch (err) {
       Alert.alert('Error', 'Failed to stop recording: ' + err.message);
     }
   };
 
   const sendEmail = async (uri) => {
-    if (!uri || !email) return;
+    if (!uri || !email) {
+      Alert.alert('Error', 'Recording or email not available');
+      return;
+    }
 
     setIsSending(true);
     try {
-      const isAvailable = await MailComposer.isAvailableAsync();
-      if (!isAvailable) {
-        Alert.alert('Error', 'Email is not available on this device');
-        return;
-      }
-
-      await MailComposer.composeAsync({
+      const result = await MailComposer.composeAsync({
         recipients: [email],
         subject: 'Voice Recording',
         body: 'Please find attached the voice recording.',
-        attachments: [uri]
+        attachments: [uri],
+        isHtml: false,
       });
+
+      if (result.status === 'sent') {
+        Alert.alert('Success', 'Recording sent successfully');
+      }
     } catch (err) {
       Alert.alert('Error', 'Failed to send email: ' + err.message);
     } finally {
@@ -94,6 +147,7 @@ export default function VoiceRecorderApp() {
         keyboardType="email-address"
         autoCapitalize="none"
         editable={!isRecording}
+        autoCompleteType="email"
       />
       
       <Text style={styles.status}>
@@ -120,22 +174,27 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     padding: 20,
+    backgroundColor: '#f5f5f5',
   },
   input: {
     width: '100%',
-    height: 40,
+    height: 50,
     borderWidth: 1,
     borderColor: '#ccc',
-    borderRadius: 5,
-    paddingHorizontal: 10,
-    marginBottom: 20,
+    borderRadius: 8,
+    paddingHorizontal: 15,
+    marginBottom: 30,
+    fontSize: 16,
+    backgroundColor: '#fff',
   },
   status: {
     fontSize: 24,
-    marginBottom: 20,
+    marginBottom: 30,
+    fontWeight: '500',
   },
   sending: {
-    marginTop: 10,
-    color: 'blue',
+    marginTop: 20,
+    color: '#2196F3',
+    fontSize: 16,
   },
 });
