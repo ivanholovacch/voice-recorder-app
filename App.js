@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { View, Button, Text, Alert, Platform } from 'react-native';
+import { View, Button, Text, Alert } from 'react-native';
 import * as MailComposer from 'expo-mail-composer';
 import { Audio } from 'expo-av';
-import * as FileSystem from 'expo-file-system';
 
 export default function VoiceRecorderApp() {
   const [recording, setRecording] = useState(null);
